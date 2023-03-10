@@ -10,13 +10,14 @@ from ..utils import set_random, create_log_dir, get_logger
 
 class ImageClassifier():
     def __init__(self, data_name, net_name, gpu_index, num_epochs, random_seed, algorithm_name, 
-                 data_prepare, model_prepare, data_curriculum, model_curriculum, loss_curriculum):
+                 data_prepare, model_prepare, data_curriculum, model_curriculum, loss_curriculum,neptune_tracker):
         self.random_seed = random_seed
         self.data_prepare = data_prepare
         self.model_prepare = model_prepare
         self.data_curriculum = data_curriculum
         self.model_curriculum = model_curriculum
         self.loss_curriculum = loss_curriculum
+        self.tracker = neptune_tracker
 
         set_random(self.random_seed)
         self._init_dataloader(data_name)
@@ -101,7 +102,11 @@ class ImageClassifier():
             self.logger.info(
                 '[%3d]  Train data = %7d  Train Acc = %.4f  Loss = %.4f  Time = %.2fs'
                 % (epoch + 1, total, correct / total, train_loss / total, time.time() - t))
-
+            
+            self.tracker["training/epoch"].append(epoch+1)
+            self.tracker["training/acc"].append(correct/total)
+            self.tracker["training/loss"].append(train_loss/total)
+            
             if (epoch + 1) % self.log_interval == 0:
                 valid_acc = self._valid(self.valid_loader)
                 if valid_acc > best_acc:
@@ -110,6 +115,9 @@ class ImageClassifier():
                 self.logger.info(
                     '[%3d]  Valid data = %7d  Valid Acc = %.4f  Best Valid Acc = %.4f' 
                     % (epoch + 1, len(self.valid_loader.dataset), valid_acc, best_acc))
+                self.tracker["validation/epoch"].append(epoch+1)
+                self.tracker["validation/acc"].append(valid_acc)
+                self.tracker["valid/best_acc"].append(best_acc)
             
 
     def _valid(self, loader):

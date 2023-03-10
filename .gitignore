@@ -11,3 +11,6 @@ old*
 run.sh
 test.py
 record.txt
+
+wrapper.py
+.neptune
