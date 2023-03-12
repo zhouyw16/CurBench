@@ -17,7 +17,7 @@ args = parser.parse_args()
 
 run = neptune.init_run(
         project="2568602045/rl-teacher",
-        name=f"trial-{0}",
+        name=f"trial-{args.data}-{args.net}-{args.policy}",
         api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI1ZGU2NGE3ZS05NWU0LTQ4ZDItOWFmYS0zNzAyNjkyZWQ1ZjAifQ==",
     )
 
@@ -49,8 +49,7 @@ trainer = RLTeacherTrainer(
 #     gpu_index=args.gpu,
 #     num_epochs=args.epochs,
 #     random_seed=args.seed,
-#     policy=args.policy,
-#     tracker=run
+#     policy=args.policy
 # )
 
 trainer.fit()
