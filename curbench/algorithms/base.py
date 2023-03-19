@@ -109,7 +109,7 @@ class BaseTrainer():
         trainer: A image classifier, language model, recommendation system, etc.
     """
 
-    def __init__(self, data_name, net_name, gpu_index, num_epochs, random_seed, tracker, cl=BaseCL()):
+    def __init__(self, data_name, net_name, gpu_index, num_epochs, random_seed, cl=BaseCL()):
         """Initiate the Model Trainer according to data_name.
 
         If the dataset is CIFAR-10, CIFAR-100, ImageNet or their variants, the Model Trainer can be a Image Classifier.
@@ -136,7 +136,6 @@ class BaseTrainer():
             data_name, net_name, gpu_index, num_epochs, random_seed,
             cl.name, cl.data_prepare, cl.model_prepare,
             cl.data_curriculum, cl.model_curriculum, cl.loss_curriculum,
-            tracker,
         )
         
 
