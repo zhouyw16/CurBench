@@ -4,20 +4,19 @@ import torch
 
 from ..datasets.vision import get_dataset_with_noise
 from ..backbones.vision import get_net
-from ..utils import set_random, create_log_dir, get_logger
+from ..utils import get_logger, set_random, create_log_dir
 
 
 
 class ImageClassifier():
     def __init__(self, data_name, net_name, gpu_index, num_epochs, random_seed, algorithm_name, 
-                 data_prepare, model_prepare, data_curriculum, model_curriculum, loss_curriculum,neptune_tracker):
+                 data_prepare, model_prepare, data_curriculum, model_curriculum, loss_curriculum):
         self.random_seed = random_seed
         self.data_prepare = data_prepare
         self.model_prepare = model_prepare
         self.data_curriculum = data_curriculum
         self.model_curriculum = model_curriculum
         self.loss_curriculum = loss_curriculum
-        self.tracker = neptune_tracker
 
         set_random(self.random_seed)
         self._init_dataloader(data_name)
@@ -26,7 +25,7 @@ class ImageClassifier():
 
 
     def _init_dataloader(self, data_name):
-        self.dataset = get_dataset_with_noise(data_name) # list: [train, valid, test]
+        self.dataset = get_dataset_with_noise(data_name)    # list: [train, valid, test]
         
         train_dataset, valid_dataset, test_dataset = self.dataset
         self.train_loader = torch.utils.data.DataLoader(
@@ -36,7 +35,7 @@ class ImageClassifier():
         self.test_loader = torch.utils.data.DataLoader(
             test_dataset, batch_size=50, shuffle=False, pin_memory=True)
 
-        self.data_prepare(self.train_loader)                            # curriculum part
+        self.data_prepare(self.train_loader)
 
 
     def _init_model(self, data_name, net_name, gpu_index, num_epochs):
@@ -47,15 +46,15 @@ class ImageClassifier():
 
         self.epochs = num_epochs
         self.criterion = torch.nn.CrossEntropyLoss(reduction='none')
-        # self.optimizer = torch.optim.SGD(                             # for lenet, resnet
+        # self.optimizer = torch.optim.SGD(
         #     self.net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
-        # self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR( 
+        # self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         #     self.optimizer, T_max=self.epochs, eta_min=1e-6)
-        self.optimizer = torch.optim.AdamW(                             # for vit
+        self.optimizer = torch.optim.AdamW(
             self.net.parameters(), lr=0.001, weight_decay=0.1)
         self.lr_scheduler = torch.optim.lr_scheduler.ConstantLR(self.optimizer, factor=1.0)
 
-        self.model_prepare(self.net, self.device, self.epochs,          # curriculum part
+        self.model_prepare(self.net, self.device, self.epochs, 
             self.criterion, self.optimizer, self.lr_scheduler)
 
     
@@ -78,8 +77,8 @@ class ImageClassifier():
             correct = 0
             train_loss = 0.0
 
-            loader = self.data_curriculum()                             # curriculum part
-            net = self.model_curriculum()                               # curriculum part
+            loader = self.data_curriculum(self.train_loader)    # curriculum part
+            net = self.model_curriculum(self.net)               # curriculum part
 
             net.train()
             for step, data in enumerate(loader):
@@ -89,7 +88,8 @@ class ImageClassifier():
                 
                 self.optimizer.zero_grad()
                 outputs = net(inputs)
-                loss = self.loss_curriculum(outputs, labels, indices)   # curriculum part
+                loss = self.loss_curriculum(                    # curriculum part
+                    self.criterion, outputs, labels, indices)
                 loss.backward()
                 self.optimizer.step()
 
@@ -97,16 +97,12 @@ class ImageClassifier():
                 predicts = outputs.argmax(dim=1)
                 correct += predicts.eq(labels).sum().item()
                 total += labels.shape[0]
-
+            
             self.lr_scheduler.step()
             self.logger.info(
                 '[%3d]  Train data = %7d  Train Acc = %.4f  Loss = %.4f  Time = %.2fs'
                 % (epoch + 1, total, correct / total, train_loss / total, time.time() - t))
-            
-            self.tracker["training/epoch"].append(epoch+1)
-            self.tracker["training/acc"].append(correct/total)
-            self.tracker["training/loss"].append(train_loss/total)
-            
+
             if (epoch + 1) % self.log_interval == 0:
                 valid_acc = self._valid(self.valid_loader)
                 if valid_acc > best_acc:
@@ -115,9 +111,6 @@ class ImageClassifier():
                 self.logger.info(
                     '[%3d]  Valid data = %7d  Valid Acc = %.4f  Best Valid Acc = %.4f' 
                     % (epoch + 1, len(self.valid_loader.dataset), valid_acc, best_acc))
-                self.tracker["validation/epoch"].append(epoch+1)
-                self.tracker["validation/acc"].append(valid_acc)
-                self.tracker["valid/best_acc"].append(best_acc)
             
 
     def _valid(self, loader):
