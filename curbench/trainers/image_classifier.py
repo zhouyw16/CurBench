@@ -4,7 +4,7 @@ import torch
 
 from ..datasets.vision import get_dataset
 from ..backbones.vision import get_net
-from ..utils import set_random, create_log_dir, get_logger
+from ..utils import get_logger, set_random, create_log_dir
 
 
 
@@ -29,6 +29,7 @@ class ImageClassifier():
         # noise:     'cifar10-noise-0.4', 
         # imbalance: 'cifar10-imbalance-dominant-[0,1]-4-5-0.8', 'cifar10-imbalance-exp-[0,1]-4-5-0.8'
         self.dataset = get_dataset(data_name) # data format is list: [train, valid, test]
+
         
         train_dataset, valid_dataset, test_dataset = self.dataset
         self.train_loader = torch.utils.data.DataLoader(
@@ -38,7 +39,7 @@ class ImageClassifier():
         self.test_loader = torch.utils.data.DataLoader(
             test_dataset, batch_size=50, shuffle=False, pin_memory=True)
 
-        self.data_prepare(self.train_loader)                            # curriculum part
+        self.data_prepare(self.train_loader)
 
 
     def _init_model(self, net_name, gpu_index, num_epochs):
@@ -59,7 +60,8 @@ class ImageClassifier():
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR( 
                 self.optimizer, T_max=self.epochs, eta_min=1e-6)
 
-        self.model_prepare(self.net, self.device, self.epochs,          # curriculum part
+
+        self.model_prepare(self.net, self.device, self.epochs, 
             self.criterion, self.optimizer, self.lr_scheduler)
 
     
@@ -82,8 +84,8 @@ class ImageClassifier():
             correct = 0
             train_loss = 0.0
 
-            loader = self.data_curriculum()                             # curriculum part
-            net = self.model_curriculum()                               # curriculum part
+            loader = self.data_curriculum(self.train_loader)    # curriculum part
+            net = self.model_curriculum(self.net)               # curriculum part
 
             net.train()
             for step, data in enumerate(loader):
@@ -93,7 +95,8 @@ class ImageClassifier():
                 
                 self.optimizer.zero_grad()
                 outputs = net(inputs)
-                loss = self.loss_curriculum(outputs, labels, indices)   # curriculum part
+                loss = self.loss_curriculum(                    # curriculum part
+                    self.criterion, outputs, labels, indices)
                 loss.backward()
                 self.optimizer.step()
 
@@ -101,7 +104,7 @@ class ImageClassifier():
                 predicts = outputs.argmax(dim=1)
                 correct += predicts.eq(labels).sum().item()
                 total += labels.shape[0]
-
+            
             self.lr_scheduler.step()
             self.logger.info(
                 '[%3d]  Train data = %7d  Train Acc = %.4f  Loss = %.4f  Time = %.2fs'

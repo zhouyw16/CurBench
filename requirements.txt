@@ -2,3 +2,12 @@ pillow
 transformers
 datasets
 evaluate
+
+torch_scatter
+torch_sparse
+torch_cluster
+torch_spline_conv
+torch_geometric
+
+torch
+torchvision

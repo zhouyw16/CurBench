@@ -1,6 +1,6 @@
 from collections import deque
 import numpy as np
-from torch.utils.data import Subset
+from torch.utils.data import DataLoader, Subset
 
 from .base import BaseTrainer, BaseCL
 
@@ -67,27 +67,36 @@ class RLTeacherOnline(BaseCL):
         self.indexs = [range(i * self.data_size // self.catnum, (i + 1) * self.data_size // self.catnum) 
                        for i in range(self.catnum)]
         l = [len(self.indexs[i]) // self.catnum for i in range(self.catnum)]
-        self.data = [self._dataloader(Subset(self.dataset, self.indexs[i]))
+        self.data = [DataLoader(Subset(self.dataset, self.indexs[i]), self.batch_size, shuffle=True)
                      for i in range(self.catnum)]
-        self.validationData = [self._dataloader(Subset(self.dataset, self.indexs[i][:l[i]]))
+        self.validationData = [DataLoader(Subset(self.dataset, self.indexs[i][:l[i]]), self.batch_size, shuffle=True)
                                for i in range(self.catnum)]
 
 
     def data_prepare(self, loader):
-        super().data_prepare(loader)
+        self.dataset = loader.dataset
+        self.data_size = len(self.dataset)
+        self.batch_size = loader.batch_size
+        self.n_batches = (self.data_size - 1) // self.batch_size + 1
         self.data_split()
 
 
-    def data_curriculum(self):
+    def model_prepare(self, net, device, epochs, criterion, optimizer, lr_scheduler):
+        self.device = device
+        self.criterion = criterion 
+        self.model = net
+
+
+    def data_curriculum(self, loader):
         acc = 0
         accs = []
         self.reward = []
         for i in range(self.catnum):
             acc = 0
-            for (sample, label, indices) in self.validationData[i]:
+            for (sample, label) in self.validationData[i]:
                 sample = sample.to(self.device)
                 label = label.to(self.device)
-                out = self.net(sample)
+                out = self.model(sample)
                 _, pred = out.max(1)
                 num_correct = (pred == label).sum().item()
                 acc += num_correct/len(self.validationData[i])
@@ -101,7 +110,7 @@ class RLTeacherOnline(BaseCL):
         # self.total[self.training] = self.total[self.training] * (1.0 - self.alpha) + self.reward * self.alpha
         p = self.policy(np.abs(self.total)if self.abs else self.total)
         temp = np.random.choice(range(self.catnum), p=p)
-        data_loader = self._dataloader(self.CLDataset(self.data[temp].dataset)) 
+        data_loader = DataLoader(self.CLDataset(self.data[temp].dataset), self.batch_size, shuffle=True) 
         return data_loader
 
 
@@ -128,25 +137,34 @@ class RLTeacherNaive(BaseCL):
     def data_split(self):
         self.indexs = [range(i*self.data_size//self.catnum, (i+1)*self.data_size//self.catnum) for i in range(self.catnum)]
         l = [len(self.indexs[i])// self.catnum for i in range(self.catnum)]
-        self.data = [self._dataloader(Subset(self.dataset, self.indexs[i]))for i in range(self.catnum)]
-        self.validationData = [self._dataloader(Subset(self.dataset, self.indexs[i][:l[i]]))for i in range(self.catnum)]
+        self.data = [DataLoader(Subset(self.dataset, self.indexs[i]), self.batch_size, shuffle=True)for i in range(self.catnum)]
+        self.validationData = [DataLoader(Subset(self.dataset, self.indexs[i][:l[i]]), self.batch_size, shuffle=True)for i in range(self.catnum)]
 
 
     def data_prepare(self, loader):
-        super().data_prepare(loader)
+        self.dataset = loader.dataset
+        self.data_size = len(self.dataset)
+        self.batch_size = loader.batch_size
+        self.n_batches = (self.data_size - 1) // self.batch_size + 1
         self.data_split()
 
 
-    def data_curriculum(self):
+    def model_prepare(self, net, device, epochs, criterion, optimizer, lr_scheduler):
+        self.device = device
+        self.criterion = criterion 
+        self.model = net
+
+
+    def data_curriculum(self, loader):
         acc = 0
         accs = []
         self.reward = []
         for i in range(self.catnum):
             acc = 0
-            for (sample, label, indices) in self.validationData[i]:
+            for (sample, label) in self.validationData[i]:
                 sample = sample.to(self.device)
                 label = label.to(self.device)
-                out = self.net(sample)
+                out = self.model(sample)
                 _, pred = out.max(1)
                 num_correct = (pred == label).sum().item()
                 acc += num_correct/len(self.validationData[i])
@@ -163,7 +181,7 @@ class RLTeacherNaive(BaseCL):
                 self.total[i] = self.total[i] * (1.0 - self.alpha) + self.reward[i] * self.alpha
             p = self.policy(np.abs(self.total)if self.abs else self.total)
             self.training = np.random.choice(range(self.catnum), p=p)
-            self.data_loader = self._dataloader(self.CLDataset(self.data[self.training].dataset))
+            self.data_loader = DataLoader(self.CLDataset(self.data[self.training].dataset), self.batch_size, shuffle=True)
         self.epoch_index += 1
 
         return self.data_loader
@@ -196,23 +214,32 @@ class RLTeacherWindow(BaseCL):
         for i in range(partnum-1):
             self.data.append(Subset(temp, range(i * l, (i + 1) * l)))
         self.partnum = partnum - 1
-        self.validationData = self._dataloader(Subset(temp, range(self.partnum * l, k)))
+        self.validationData = DataLoader(Subset(temp, range(self.partnum * l, k)), self.batch_size, shuffle=True)
 
 
     def data_prepare(self, loader):
-        super().data_prepare(loader)
+        self.dataset = loader.dataset
+        self.data_size = len(self.dataset)
+        self.batch_size = loader.batch_size
+        self.n_batches = (self.data_size - 1) // self.batch_size + 1
         self.split(loader, 10)
         self.total = np.zeros(self.partnum)
         self.scores = [deque(maxlen=self.window_size) for _ in range(self.partnum)]
         self.timesteps = [deque(maxlen=self.window_size) for _ in range(self.partnum)]
 
 
-    def data_curriculum(self):
+    def model_prepare(self, net, device, epochs, criterion, optimizer, lr_scheduler):
+        self.device = device
+        self.criterion = criterion 
+        self.model = net
+
+
+    def data_curriculum(self, loader):
         acc = 0
-        for (sample, label, indices) in self.validationData:
+        for (sample, label) in self.validationData:
             sample = sample.to(self.device)
             label = label.to(self.device)
-            out = self.net(sample)
+            out = self.model(sample)
             _, pred = out.max(1)
             num_correct = (pred == label).sum().item()
             acc += num_correct/len(self.validationData)
@@ -225,7 +252,7 @@ class RLTeacherWindow(BaseCL):
                   zip(self.timesteps, self.scores)]
         p = self.policy(np.abs(self.total) if self.abs else self.total)
         self.training = np.random.choice(range(self.partnum), p=p)
-        self.data_loader = self._dataloader(self.CLDataset(self.data[self.training]))
+        self.data_loader = DataLoader(self.CLDataset(self.data[self.training]), self.batch_size, shuffle=True)
         self.epoch_index += 1
         return self.data_loader
 
@@ -254,7 +281,10 @@ class RLTeacherSampling(BaseCL):
 
 
     def data_prepare(self, loader):
-        super().data_prepare(loader)
+        self.dataset = loader.dataset
+        self.data_size = len(self.dataset)
+        self.batch_size = loader.batch_size
+        self.n_batches = (self.data_size - 1) // self.batch_size + 1
         partnum = 10
         temp = self.dataset
         k = len(temp)
@@ -262,18 +292,24 @@ class RLTeacherSampling(BaseCL):
         self.data = []
         self.partnum = partnum
         for i in range(partnum-1):
-            self.data.append(self._dataloader(Subset(temp, range(i * l, (i + 1) * l))))
-        self.data.append(self._dataloader(Subset(temp, range((self.partnum - 1) * l, k))))
+            self.data.append(DataLoader(Subset(temp, range(i * l, (i + 1) * l)), self.batch_size, shuffle=True))
+        self.data.append(DataLoader(Subset(temp, range((self.partnum - 1) * l, k)), self.batch_size, shuffle=True))
 
 
-    def data_curriculum(self):
+    def model_prepare(self, net, device, epochs, criterion, optimizer, lr_scheduler):
+        self.device = device
+        self.criterion = criterion 
+        self.model = net
+
+
+    def data_curriculum(self, loader):
         self.accs = []
         for i in range(self.partnum):
             acc = 0
-            for (sample, label, indices) in self.data[i]:
+            for (sample, label) in self.data[i]:
                 sample = sample.to(self.device)
                 label = label.to(self.device)
-                out = self.net(sample)
+                out = self.model(sample)
                 _, pred = out.max(1)
                 num_correct = (pred == label).sum().item()
                 acc += num_correct/len(self.data[i])
@@ -287,7 +323,7 @@ class RLTeacherSampling(BaseCL):
             slopes = np.ones(self.partnum)
         p = self.policy(np.abs(slopes) if self.abs else slopes)
         self.training = np.random.choice(range(self.partnum), p=p)
-        data_loader = self._dataloader(self.CLDataset(self.data[self.training].dataset))
+        data_loader = DataLoader(self.CLDataset(self.data[self.training].dataset), self.batch_size, shuffle=True)
         dr = [i-j for i, j in zip(self.accs, self.prevr)]
         self.prevr = self.accs
         self.dscores.append(dr)
@@ -296,7 +332,7 @@ class RLTeacherSampling(BaseCL):
 
 
 class RLTeacherTrainer(BaseTrainer):
-    def __init__(self, data_name, net_name, gpu_index, num_epochs, random_seed, policy):
+    def __init__(self, data_name, net_name, num_epochs, random_seed, policy):
         
         cl_dict = {'online': RLTeacherOnline,
                    'naive': RLTeacherNaive,
@@ -305,4 +341,4 @@ class RLTeacherTrainer(BaseTrainer):
         cl = cl_dict[policy]()
 
         super(RLTeacherTrainer, self).__init__(
-            data_name, net_name, gpu_index, num_epochs, random_seed, cl)
+            data_name, net_name, num_epochs, random_seed, cl)
