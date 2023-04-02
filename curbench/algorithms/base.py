@@ -32,6 +32,7 @@ class BaseCL():
 
         def __getitem__(self, index):
             """Attach data index"""
+            index = int(index)
             data = self.dataset[index]
             if isinstance(data, tuple):         # data from torch.utils.data.Dataset
                 data = data + (index,)          # e.g. data from cifar, imagenet

@@ -50,8 +50,8 @@ def get_cifar10_dataset(data_dir='data', valid_ratio=0.1,
     indices = list(range(num_train))
     split = int(np.floor(valid_ratio * num_train))
     np.random.shuffle(indices)
-
-    train_idx, valid_idx = indices[split:], indices[:split]
+    # 10% used
+    train_idx, valid_idx = indices[split: split + 4000], indices[:split]
     train_dataset = Subset(train_dataset, train_idx)
     valid_dataset = Subset(valid_dataset, valid_idx)
 

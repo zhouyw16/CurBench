@@ -6,7 +6,7 @@ from ..datasets.vision import get_dataset_with_noise
 from ..backbones.vision import get_net
 from ..utils import set_random, create_log_dir, get_logger
 
-
+default_batch_size = 50
 
 class ImageClassifier():
     def __init__(self, data_name, net_name, gpu_index, num_epochs, random_seed, algorithm_name, 
@@ -28,12 +28,13 @@ class ImageClassifier():
         self.dataset = get_dataset_with_noise(data_name) # list: [train, valid, test]
         
         train_dataset, valid_dataset, test_dataset = self.dataset
+        
         self.train_loader = torch.utils.data.DataLoader(
-            train_dataset, batch_size=50, shuffle=True, pin_memory=True)
+            train_dataset, batch_size=default_batch_size, shuffle=True, pin_memory=True)
         self.valid_loader = torch.utils.data.DataLoader(
-            valid_dataset, batch_size=50, shuffle=False, pin_memory=True)
+            valid_dataset, batch_size=default_batch_size, shuffle=False, pin_memory=True)
         self.test_loader = torch.utils.data.DataLoader(
-            test_dataset, batch_size=50, shuffle=False, pin_memory=True)
+            test_dataset, batch_size=default_batch_size, shuffle=False, pin_memory=True)
 
         self.data_prepare(self.train_loader)                            # curriculum part
 
@@ -46,13 +47,13 @@ class ImageClassifier():
 
         self.epochs = num_epochs
         self.criterion = torch.nn.CrossEntropyLoss(reduction='none')
-        # self.optimizer = torch.optim.SGD(                             # for lenet, resnet
-        #     self.net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
-        # self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR( 
-        #     self.optimizer, T_max=self.epochs, eta_min=1e-6)
-        self.optimizer = torch.optim.AdamW(                             # for vit
-            self.net.parameters(), lr=0.001, weight_decay=0.1)
-        self.lr_scheduler = torch.optim.lr_scheduler.ConstantLR(self.optimizer, factor=1.0)
+        self.optimizer = torch.optim.SGD(                             # for lenet, resnet
+            self.net.parameters(), lr=1e-4, momentum=0.9, weight_decay=5e-4)
+        self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR( 
+            self.optimizer, T_max=self.epochs, eta_min=1e-6)
+        # self.optimizer = torch.optim.AdamW(                             # for vit
+        #     self.net.parameters(), lr=0.001, weight_decay=0.1)
+        # self.lr_scheduler = torch.optim.lr_scheduler.ConstantLR(self.optimizer, factor=1.0)
 
         self.model_prepare(self.net, self.device, self.epochs,          # curriculum part
             self.criterion, self.optimizer, self.lr_scheduler)
@@ -60,7 +61,7 @@ class ImageClassifier():
     
     def _init_logger(self, algorithm_name, data_name, 
                      net_name, num_epochs, random_seed):
-        self.log_interval = 1
+        self.log_interval = 1000
         log_info = '%s-%s-%s-%d-%d-%s' % (
             algorithm_name, data_name, net_name, num_epochs, random_seed,
             time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime()))

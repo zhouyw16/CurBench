@@ -54,7 +54,7 @@ class TextClassifier():
 
         self.epochs = num_epochs
         self.optimizer = torch.optim.SGD(
-            self.net.parameters(), lr=1.0)                              # for lstm
+            self.net.parameters(), lr=0.0001)                              # for lstm
         self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             self.optimizer, T_max=self.epochs, eta_min=1e-5)
         # self.optimizer = torch.optim.AdamW(
@@ -71,7 +71,7 @@ class TextClassifier():
 
     def _init_logger(self, algorithm_name, data_name, 
                      net_name, num_epochs, random_seed):
-        self.log_interval = 1
+        self.log_interval = 1000
         log_info = '%s-%s-%s-%d-%d-%s' % (
             algorithm_name, data_name, net_name, num_epochs, random_seed,
             time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime()))
@@ -93,13 +93,13 @@ class TextClassifier():
 
             net.train()
             for step, data in enumerate(loader):
-                inputs = {k: v.to(self.device) for k, v in data.items() 
-                          if k not in ['labels', 'indices']}
-                labels = data['labels'].to(self.device)
-                indices = data['indices'].to(self.device)
+                inputs = data[0].to(self.device)
+                labels = data[1].to(self.device)
+                indices = data[2].to(self.device)
 
                 self.optimizer.zero_grad()
-                outputs = net(**inputs)[0] # logits, (hidden_states), (attentions)
+                # outputs = net(**inputs)[0] # logits, (hidden_states), (attentions)
+                outputs = net(inputs)[0]
                 loss = self.loss_curriculum(outputs, labels, indices)   # curriculum part
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(net.parameters(), 5.0)

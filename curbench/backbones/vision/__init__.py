@@ -1,6 +1,7 @@
 from .lenet import LeNet
 from .vgg import VGG16
-from .resnet import ResNet18
+from .resnet import ResNet18, ResNet50
+from .wide_resnet import WideResNet28 
 from .vit import RelViT
 
 
@@ -9,6 +10,8 @@ def get_net(net_name, data_name):
         'lenet': LeNet,
         'vgg16': VGG16,
         'resnet18': ResNet18,
+        'resnet50': ResNet50,
+        'wideresnet28': WideResNet28,
         'vit': RelViT,
     }
 
