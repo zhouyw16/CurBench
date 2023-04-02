@@ -3,7 +3,7 @@ import time
 import torch
 import torch_geometric as pyg
 
-from ..datasets.graph import get_dataset, split_dataset
+from ..datasets.graph import get_dataset
 from ..backbones.graph import get_net
 from ..utils import set_random, create_log_dir, get_logger
 
@@ -21,14 +21,16 @@ class GraphClassifier():
 
         set_random(self.random_seed)
         self._init_dataloader(data_name)
-        self._init_model(data_name, net_name, gpu_index, num_epochs)
+        self._init_model(net_name, gpu_index, num_epochs)
         self._init_logger(algorithm_name, data_name, net_name, num_epochs, random_seed)
 
 
     def _init_dataloader(self, data_name):
-        self.dataset = get_dataset(data_name) # as a whole: to shuffle and split
+        # standard:  'nci1'
+        # noise:     'nci1-noise-0.4', 
+        # imbalance: 'nci1-imbalance-dominant-[0,1]-4-5-0.8', 'nci1-imbalance-exp-[0,1]-4-5-0.8'
+        self.dataset, train_dataset, valid_dataset, test_dataset = get_dataset(data_name) # data format is a class: to shuffle and split
 
-        train_dataset, valid_dataset, test_dataset = split_dataset(self.dataset)
         self.train_loader = pyg.loader.DataLoader(
             train_dataset, batch_size=50, shuffle=True, pin_memory=True)
         self.valid_loader = pyg.loader.DataLoader(
@@ -39,7 +41,7 @@ class GraphClassifier():
         self.data_prepare(self.train_loader)                            # curriculum part
 
 
-    def _init_model(self, data_name, net_name, gpu_index, num_epochs):
+    def _init_model(self, net_name, gpu_index, num_epochs):
         self.net = get_net(net_name, self.dataset)
         self.device = torch.device('cuda:%d' % (gpu_index) \
             if torch.cuda.is_available() else 'cpu')

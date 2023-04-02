@@ -44,12 +44,12 @@ ImageNet32: CurBench/data/imagenet32/train_data_batch_1, ...
 
 ### Text
 
-**GLUE** will be downloaded automatically and it consists of **cola**, **sst2**, **mrpc**, **qqp**, **stsb**, **mnli**, **qnli**, **rte**, **wnli**, **ax**.
+**GLUE** will be downloaded automatically and it consists of **cola**, **sst2**, **mrpc**, **qqp**, **stsb**, **mnli**, **qnli**, **rte**, **wnli**.
 
 ### Graph
 **Planetoid** will be downloaded automatically and it consists of **Cora**, **CiteSeer**, **PubMed**.
 
-**TUDataset** will be downloaded automatically and it consists of many datasets, among which we choose **NCI1**, **PROTEINS**, **COLLAB**, **DD**, **PTC_MR**, **IMDB-BINARY**.
+**TUDataset** will be downloaded automatically and it consists of many datasets, among which we choose **NCI1**, **PROTEINS**, **DD**, **PTC_MR**.
 
 
 ## Quick Start
@@ -79,7 +79,7 @@ python examples/base.py --data <cifar10/cifar100/imagenet32> --net <lenet/resnet
 python examples/base.py --data <rte/sst2/cola/> --net <lstm/bert/gpt> --gpu <0/1/2/>
 
 # 3. graph standard
-python examples/base.py --data <nci1/ptc_mr/imdb-binary/> --net <gcn/gat/sage> --gpu <0/1/2/>
+python examples/base.py --data <nci1/ptc_mr/> --net <gcn/gat/sage> --gpu <0/1/2/>
 ```
 
 

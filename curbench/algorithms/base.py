@@ -61,7 +61,7 @@ class BaseCL():
             raise NotImplementedError()
 
 
-    def data_prepare(self, loader):
+    def data_prepare(self, loader, **kwargs):
         """Pass training data information from Model Trainer to CL Algorithm.
         
         Initiate the CLDataset and record training data attributes.
@@ -73,8 +73,7 @@ class BaseCL():
         self.n_batches = (self.data_size - 1) // self.batch_size + 1
 
 
-    def model_prepare(self, net, device, epochs, 
-                      criterion, optimizer, lr_scheduler):
+    def model_prepare(self, net, device, epochs, criterion, optimizer, lr_scheduler, **kwargs):
         """Pass model information from Model Trainer to CL Algorithm."""
         self.net = net
         self.device = device
@@ -84,17 +83,17 @@ class BaseCL():
         self.lr_scheduler = lr_scheduler
 
 
-    def data_curriculum(self):
+    def data_curriculum(self, **kwargs):
         """Measure data difficulty and schedule the training set."""
         return self._dataloader(self.dataset)
 
 
-    def model_curriculum(self):
+    def model_curriculum(self, **kwargs):
         """Schedule the model changing."""
         return self.net
 
 
-    def loss_curriculum(self, outputs, labels, indices):
+    def loss_curriculum(self, outputs, labels, indices, **kwargs):
         """Reweight loss."""
         return torch.mean(self.criterion(outputs, labels))
 
@@ -121,19 +120,20 @@ class BaseTrainer():
             'cifar10': ImageClassifier, 'cifar100': ImageClassifier, 'imagenet32': ImageClassifier,
 
             'cola': TextClassifier, 'sst2': TextClassifier, 'mrpc': TextClassifier, 'qqp': TextClassifier, 'stsb': TextClassifier, 
-            'mnli': TextClassifier, 'qnli': TextClassifier, 'rte': TextClassifier, 'wnli': TextClassifier, 'ax': TextClassifier,
+            'mnli': TextClassifier, 'qnli': TextClassifier, 'rte': TextClassifier, 'wnli': TextClassifier,
 
             # TODO: Since the data format of node classification is a graph, which can not be loaded as a dataloader,
             # TODO: we may implement curriculum learning for it in the future.
             # 'cora': NodeClassifier, 'citeseer': NodeClassifier, 'pubmed': NodeClassifier,
 
             'mutag': GraphClassifier, 'nci1': GraphClassifier, 'proteins': GraphClassifier, 
-            'collab': GraphClassifier, 'dd': GraphClassifier, 'ptc_mr': GraphClassifier, 'imdb-binary': GraphClassifier,
+            'dd': GraphClassifier, 'ptc_mr': GraphClassifier,
         }
-        assert data_name in trainer_dict, \
+        # allow data name format: [data]-[noise/imbalance]-[args]
+        assert data_name.split('-')[0] in trainer_dict, \
             'Assert Error: data_name should be in ' + str(list(trainer_dict.keys()))
-        
-        self.trainer = trainer_dict[data_name](
+
+        self.trainer = trainer_dict[data_name.split('-')[0]](
             data_name, net_name, gpu_index, num_epochs, random_seed,
             cl.name, cl.data_prepare, cl.model_prepare,
             cl.data_curriculum, cl.model_curriculum, cl.loss_curriculum,

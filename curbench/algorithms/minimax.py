@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Subset
+from torch_geometric.data.batch import Batch as pygBatch
 
 from .base import BaseTrainer, BaseCL
 
@@ -21,7 +22,6 @@ class Minimax(BaseCL):
         super(Minimax, self).__init__()
 
         self.name = 'minimax'
-
         self.epoch = 0
         self.schedule_epoch = schedule_epoch
         self.warm_epoch = warm_epoch
@@ -42,7 +42,7 @@ class Minimax(BaseCL):
         self.fe_central_sum = fe_central_sum
     
 
-    def data_prepare(self, loader):
+    def data_prepare(self, loader, **kwargs):
         super().data_prepare(loader)
         self.dataloader = loader
         
@@ -56,7 +56,7 @@ class Minimax(BaseCL):
         self.train_set = np.arange(self.data_size)
 
 
-    def model_prepare(self, net, device, epochs, criterion, optimizer, lr_scheduler):
+    def model_prepare(self, net, device, epochs, criterion, optimizer, lr_scheduler, **kwargs):
         super().model_prepare(net, device, epochs, criterion, optimizer, lr_scheduler)
         if self.delta is None:
             self.delta = int((self.data_size - self.siz) / (int(self.epochs / self.schedule_epoch)))
@@ -66,7 +66,7 @@ class Minimax(BaseCL):
         self.num_classes = self.net.num_labels
 
 
-    def data_curriculum(self):
+    def data_curriculum(self, **kwargs):
         if self.epoch % self.schedule_epoch == 0:
             if self.epoch != 0:
                 self.lam = max(self.lam * (1 - self.gamma), self.minlam)
@@ -84,7 +84,7 @@ class Minimax(BaseCL):
         else:
             pro = self.loss + self.lam * self.centrality
             pro = pro / np.sum(pro)
-            self.train_set = np.random.choice(self.data_size, int(self.siz), p=pro, replace=False)
+            self.train_set = np.random.choice(self.data_size, int(self.siz), p=pro, replace=False).tolist()
             dataset = Subset(self.dataset, self.train_set)
             dataloader = self._dataloader(dataset, shuffle=False)
 
@@ -93,7 +93,7 @@ class Minimax(BaseCL):
         return dataloader
     
 
-    def loss_curriculum(self, outputs, labels, indices):
+    def loss_curriculum(self, outputs, labels, indices, **kwargs):
         losses = self.criterion(outputs, labels)
         for loss in losses:
             self.loss[self.train_set[self.cnt]] = loss
@@ -104,12 +104,35 @@ class Minimax(BaseCL):
     def _pretrain(self, dataloader):
         self.net.train()
         for step, data in enumerate(dataloader):
-            inputs = data[0].to(self.device)
-            labels = data[1].to(self.device)
-            self.optimizer.zero_grad()
-            outputs = self.net(inputs)
-            loss = self.criterion(outputs, labels).mean()
-            loss.backward()
+            if isinstance(data, list):  
+                # image classification
+                inputs = data[0].to(self.device)
+                labels = data[1].to(self.device)
+                self.optimizer.zero_grad()
+                outputs = self.net(inputs)
+                loss = self.criterion(outputs, labels).mean()
+                loss.backward()
+            elif isinstance(data, dict): 
+                # text classification
+                inputs = {k: v.to(self.device) for k, v in data.items() 
+                            if k not in ['labels', 'indices']}
+                labels = data['labels'].to(self.device)
+                indices = data['indices'].to(self.device)
+                self.optimizer.zero_grad()
+                outputs = self.net(**inputs)[0] # logits, (hidden_states), (attentions)
+                loss = self.criterion(outputs, labels).mean()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.net.parameters(), 5.0)
+            elif isinstance(data, pygBatch):
+                inputs = data.to(self.device)
+                labels = data.y.to(self.device)
+                indices = data.i.to(self.device)
+                self.optimizer.zero_grad()
+                outputs = self.net(inputs)
+                loss = self.criterion(outputs, labels).mean()   # curriculum part
+                loss.backward()
+            else:
+                raise NotImplementedError()
             self.optimizer.step()
         self.lr_scheduler.step()
     
@@ -120,9 +143,22 @@ class Minimax(BaseCL):
         _net.fc = nn.Identity()
         _net.eval()
         for step, data in enumerate(dataloader):
-            inputs = data[0].to(self.device)
-            with torch.no_grad():
-                feature = _net(inputs)
+            if isinstance(data, list):
+                inputs = data[0].to(self.device)
+                with torch.no_grad():
+                    feature = _net(inputs)
+            elif isinstance(data, dict):
+                # text classification
+                inputs = {k: v.to(self.device) for k, v in data.items() 
+                            if k not in ['labels', 'indices']}
+                with torch.no_grad():
+                    feature = self.net(**inputs)[0]
+            elif isinstance(data, pygBatch):
+                inputs = data.to(self.device)
+                with torch.no_grad():
+                    feature = self.net(inputs)
+            else:
+                raise NotImplementedError()
             all_feature = np.append(all_feature, feature.cpu())
         all_feature = all_feature.reshape(int(self.data_size), int(len(all_feature) / self.data_size))
         return all_feature

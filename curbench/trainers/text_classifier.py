@@ -2,8 +2,8 @@ import os
 import time
 import torch
 
-from ..datasets.text import get_dataset, get_tokenizer, get_metric, convert_dataset
-from ..backbones.text import get_net
+from ..datasets.text import get_dataset, get_metric
+from ..backbones.text import get_net, get_tokenizer
 from ..utils import set_random, create_log_dir, get_logger
 
 
@@ -20,16 +20,18 @@ class TextClassifier():
 
         set_random(self.random_seed)
         self._init_dataloader(data_name, net_name)
-        self._init_model(data_name, net_name, gpu_index, num_epochs)
+        self._init_model(net_name, gpu_index, num_epochs)
         self._init_logger(algorithm_name, data_name, net_name, num_epochs, random_seed)
 
 
     def _init_dataloader(self, data_name, net_name):
-        self.dataset = get_dataset(data_name) # dict: {train, valid, test}
-        self.metric, self.metric_name = get_metric(data_name)
+        # standard:  'sst2'
+        # noise:     'sst2-noise-0.4', 
+        # imbalance: 'sst2-imbalance-dominant-[0,1]-4-5-0.8', 'sst2-imbalance-exp-[0,1]-4-5-0.8'
         self.tokenizer = get_tokenizer(net_name)
-
-        dataset = convert_dataset(data_name, self.dataset, self.tokenizer)
+        self.dataset, dataset = get_dataset(data_name, self.tokenizer)  # data format is dict: {train, valid, test}
+        self.metric, self.metric_name = get_metric(data_name)
+    
         self.train_loader = torch.utils.data.DataLoader(
             dataset['train'], batch_size=50, shuffle=True, pin_memory=True)
         if data_name == 'mnli':
@@ -43,16 +45,17 @@ class TextClassifier():
             self.test_loader = [torch.utils.data.DataLoader(
                 dataset['test'], batch_size=50, pin_memory=True)]
 
-        self.data_prepare(self.train_loader)                            # curriculum part
+        self.data_prepare(self.train_loader, metric=self.metric)        # curriculum part
 
 
-    def _init_model(self, data_name, net_name, gpu_index, num_epochs):
+    def _init_model(self, net_name, gpu_index, num_epochs):
         self.net = get_net(net_name, self.dataset, self.tokenizer)
         self.device = torch.device('cuda:%d' % (gpu_index) \
             if torch.cuda.is_available() else 'cpu')
         self.net.to(self.device)
 
         self.epochs = num_epochs
+<<<<<<< HEAD
         self.optimizer = torch.optim.SGD(
             self.net.parameters(), lr=0.0001)                              # for lstm
         self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
@@ -60,6 +63,16 @@ class TextClassifier():
         # self.optimizer = torch.optim.AdamW(
         #   self.net.parameters(), lr=2e-5)                             # for pretrained bert, gpt
         # self.lr_scheduler = torch.optim.lr_scheduler.ConstantLR(self.optimizer, factor=1.0)
+=======
+        if net_name in ['bert', 'gpt']:                                 # for pretrained bert, gpt
+            self.optimizer = torch.optim.AdamW(self.net.parameters(), lr=2e-5)
+            self.lr_scheduler = torch.optim.lr_scheduler.ConstantLR(self.optimizer, factor=1.0)
+        else:                                                           # for lstm
+            self.optimizer = torch.optim.SGD(self.net.parameters(), lr=1.0)                          
+            self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                self.optimizer, T_max=self.epochs, eta_min=1e-5)
+
+>>>>>>> master
         if self.net.num_labels == 1: # data_name == 'stsb'
             self.criterion = torch.nn.MSELoss(reduction='none')
         else:
@@ -117,7 +130,7 @@ class TextClassifier():
             train_metric = self.metric.compute(predictions=predictions, references=references)[self.metric_name]
             self.logger.info(
                 '[%3d]  Train data = %7d  Train %s = %.4f  Loss = %.4f  Time = %.2fs'
-                % (epoch + 1, total, self.metric_name, train_metric, train_loss / total, time.time() - t))
+                % (epoch + 1, total, self.metric_name.capitalize(), train_metric, train_loss / total, time.time() - t))
 
             if (epoch + 1) % self.log_interval == 0:
                 valid_metrics = [self._valid(valid_loader) for valid_loader in self.valid_loader]
@@ -127,7 +140,7 @@ class TextClassifier():
                 for valid_loader, valid_metric, best_metric in zip(self.valid_loader, valid_metrics, best_metrics):
                     self.logger.info(
                         '[%3d]  Valid data = %7d  Valid %s = %.4f  Best Valid %s = %.4f' 
-                        % (epoch + 1, len(valid_loader.dataset), self.metric_name, valid_metric, self.metric_name, best_metric))
+                        % (epoch + 1, len(valid_loader.dataset), self.metric_name.capitalize(), valid_metric, self.metric_name.capitalize(), best_metric))
             
 
     def _valid(self, loader):
@@ -157,10 +170,12 @@ class TextClassifier():
         self._load_best_net(net_dir)
         for valid_loader, test_loader in zip(self.valid_loader, self.test_loader):
             valid_metric = self._valid(valid_loader)
-            test_metric = self._valid(test_loader)
-            self.logger.info('Best Valid %s = %.4f and Final Test %s = %.4f' 
-                            % (self.metric_name, valid_metric, self.metric_name, test_metric))
-        return test_metric
+            # test_metric = self._valid(test_loader)
+            # self.logger.info('Best Valid %s = %.4f and Final Test %s = %.4f' 
+            #                 % (self.metric_name.capitalize(), valid_metric, self.metric_name.capitalize(), test_metric))
+            self.logger.info('Best Valid %s = %.4f' % (self.metric_name.capitalize(), valid_metric))
+        # return test_metric
+        return None
 
 
     def export(self, net_dir=None):

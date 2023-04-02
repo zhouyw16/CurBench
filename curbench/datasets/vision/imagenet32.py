@@ -10,7 +10,7 @@ from PIL import Image
 from torch.utils.data import Subset, Dataset
 from torchvision import transforms
 
-from .utils import Cutout, LabelNoise
+from .utils import Cutout
 
 
 class ImageNet32(Dataset):
@@ -46,6 +46,7 @@ class ImageNet32(Dataset):
 
         self.data: Any = []
         self.targets = []
+        self.num_classes = 1000
 
         # now load the picked numpy arrays
         for file_name in downloaded_list:
@@ -88,8 +89,7 @@ class ImageNet32(Dataset):
         return f"Split: {split}"
 
 
-def get_imagenet32_dataset(data_dir='data', valid_ratio=0.1, 
-                           augment=True, cutout_length=0, noise_ratio=0.0):
+def get_imagenet32_dataset(data_dir='data', valid_ratio=0.1, augment=True, cutout_length=0):
     assert ((valid_ratio >= 0) and (valid_ratio <= 1)), \
         'Assert Error: valid_size should be in the range [0, 1].'
     
@@ -122,9 +122,6 @@ def get_imagenet32_dataset(data_dir='data', valid_ratio=0.1,
     train_idx, valid_idx = indices[split:], indices[:split]
     train_dataset = Subset(train_dataset, train_idx)
     valid_dataset = Subset(valid_dataset, valid_idx)
-
-    if noise_ratio > 0.0:
-        train_dataset = LabelNoise(train_dataset, noise_ratio, 1000)
 
     return train_dataset, valid_dataset, test_dataset
 
