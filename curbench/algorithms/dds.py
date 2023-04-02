@@ -162,9 +162,9 @@ class DDS(BaseCL):
         else:
             out5_ = out5
         L = torch.sum(r * torch.log(out5_) )
-        
-        grad2 = torch.autograd.grad(L, self.vnet_.parameters(), retain_graph=True)
         grad1 = torch.autograd.grad(L, self.linear.parameters(), create_graph=True, retain_graph=True)
+        grad2 = torch.autograd.grad(L, self.vnet_.parameters())
+        
         
         # grad2 = torch.autograd.grad(L, self.vnet_.parameters(), allow_unused=True)
         #print(grad1)

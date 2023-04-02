@@ -59,7 +59,7 @@ class TextClassifier():
             self.optimizer = torch.optim.AdamW(self.net.parameters(), lr=2e-5)
             self.lr_scheduler = torch.optim.lr_scheduler.ConstantLR(self.optimizer, factor=1.0)
         else:                                                           # for lstm
-            self.optimizer = torch.optim.SGD(self.net.parameters(), lr=1.0)                          
+            self.optimizer = torch.optim.SGD(self.net.parameters(), lr=0.000001)                          
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 self.optimizer, T_max=self.epochs, eta_min=1e-5)
 

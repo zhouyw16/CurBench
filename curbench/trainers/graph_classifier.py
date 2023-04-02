@@ -7,7 +7,7 @@ from ..datasets.graph import get_dataset
 from ..backbones.graph import get_net
 from ..utils import set_random, create_log_dir, get_logger
 
-
+init_batch_size = 128
 
 class GraphClassifier():
     def __init__(self, data_name, net_name, gpu_index, num_epochs, random_seed, algorithm_name, 
@@ -32,11 +32,11 @@ class GraphClassifier():
         self.dataset, train_dataset, valid_dataset, test_dataset = get_dataset(data_name) # data format is a class: to shuffle and split
 
         self.train_loader = pyg.loader.DataLoader(
-            train_dataset, batch_size=50, shuffle=True, pin_memory=True)
+            train_dataset, batch_size=init_batch_size, shuffle=True, pin_memory=True)
         self.valid_loader = pyg.loader.DataLoader(
-            valid_dataset, batch_size=50, shuffle=False, pin_memory=True)
+            valid_dataset, batch_size=init_batch_size, shuffle=False, pin_memory=True)
         self.test_loader = pyg.loader.DataLoader(
-            test_dataset, batch_size=50, shuffle=False, pin_memory=True)
+            test_dataset, batch_size=init_batch_size, shuffle=False, pin_memory=True)
 
         self.data_prepare(self.train_loader)                            # curriculum part
 
@@ -49,7 +49,7 @@ class GraphClassifier():
 
         self.epochs = num_epochs
         self.criterion = torch.nn.CrossEntropyLoss(reduction='none')
-        self.optimizer = torch.optim.Adam(self.net.parameters(), lr=0.01)
+        self.optimizer = torch.optim.Adam(self.net.parameters(), lr=0.001)
         self.lr_scheduler = torch.optim.lr_scheduler.ConstantLR(self.optimizer, factor=1.0)
 
         self.model_prepare(self.net, self.device, self.epochs,          # curriculum part
