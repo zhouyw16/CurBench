@@ -57,7 +57,7 @@ class GraphClassifier():
     
     def _init_logger(self, algorithm_name, data_name, 
                      net_name, num_epochs, random_seed):
-        self.log_interval = 1
+        self.log_interval = 1000
         log_info = '%s-%s-%s-%d-%d-%s' % (
             algorithm_name, data_name, net_name, num_epochs, random_seed,
             time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime()))

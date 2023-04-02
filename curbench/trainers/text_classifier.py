@@ -7,7 +7,7 @@ from ..backbones.text import get_net, get_tokenizer
 from ..utils import set_random, create_log_dir, get_logger
 
 
-
+init_batch_size = 64
 class TextClassifier():
     def __init__(self, data_name, net_name, gpu_index, num_epochs, random_seed, algorithm_name, 
                  data_prepare, model_prepare, data_curriculum, model_curriculum, loss_curriculum):
@@ -33,17 +33,17 @@ class TextClassifier():
         self.metric, self.metric_name = get_metric(data_name)
     
         self.train_loader = torch.utils.data.DataLoader(
-            dataset['train'], batch_size=50, shuffle=True, pin_memory=True)
+            dataset['train'], batch_size=init_batch_size, shuffle=True, pin_memory=True)
         if data_name == 'mnli':
             self.valid_loader = [torch.utils.data.DataLoader(
-                dataset[x], batch_size=50, pin_memory=True) for x in ['validation_matched', 'validation_mismatched']]
+                dataset[x], batch_size=init_batch_size, pin_memory=True) for x in ['validation_matched', 'validation_mismatched']]
             self.test_loader = [torch.utils.data.DataLoader(
-                dataset[x], batch_size=50, pin_memory=True) for x in ['test_matched', 'test_mismatched']]
+                dataset[x], batch_size=init_batch_size, pin_memory=True) for x in ['test_matched', 'test_mismatched']]
         else:
             self.valid_loader = [torch.utils.data.DataLoader(
-                dataset['validation'], batch_size=50, pin_memory=True)]
+                dataset['validation'], batch_size=init_batch_size, pin_memory=True)]
             self.test_loader = [torch.utils.data.DataLoader(
-                dataset['test'], batch_size=50, pin_memory=True)]
+                dataset['test'], batch_size=init_batch_size, pin_memory=True)]
 
         self.data_prepare(self.train_loader, metric=self.metric)        # curriculum part
 
@@ -55,15 +55,6 @@ class TextClassifier():
         self.net.to(self.device)
 
         self.epochs = num_epochs
-<<<<<<< HEAD
-        self.optimizer = torch.optim.SGD(
-            self.net.parameters(), lr=0.0001)                              # for lstm
-        self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            self.optimizer, T_max=self.epochs, eta_min=1e-5)
-        # self.optimizer = torch.optim.AdamW(
-        #   self.net.parameters(), lr=2e-5)                             # for pretrained bert, gpt
-        # self.lr_scheduler = torch.optim.lr_scheduler.ConstantLR(self.optimizer, factor=1.0)
-=======
         if net_name in ['bert', 'gpt']:                                 # for pretrained bert, gpt
             self.optimizer = torch.optim.AdamW(self.net.parameters(), lr=2e-5)
             self.lr_scheduler = torch.optim.lr_scheduler.ConstantLR(self.optimizer, factor=1.0)
@@ -72,7 +63,6 @@ class TextClassifier():
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 self.optimizer, T_max=self.epochs, eta_min=1e-5)
 
->>>>>>> master
         if self.net.num_labels == 1: # data_name == 'stsb'
             self.criterion = torch.nn.MSELoss(reduction='none')
         else:

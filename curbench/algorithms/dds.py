@@ -54,19 +54,21 @@ class DDS(BaseCL):
         self.linear = VNet_(self.catnum, 1).to(self.device)
         # vision
         if self.net_type == 'vision':
-            self.image, self.label, self.indices = next(self.iter1)
+            self.input, self.label, self.indices = next(self.iter1)
         # text
         if self.net_type == 'text':
             temp = next(self.iter1)
-            self.image = temp['input_ids']
+            self.input = temp['input_ids']
             self.label = temp['labels']
             self.indices = temp['indices']
         # graph
         if self.net_type == 'graph':
-            # edge_index, x, edge_attr, y, i, batch, ptr = next(self.iter1)
-            # print(i)
-            # print(batch)
-            pass
+            # input: (x, edge_index, batch), y, i
+            # edge_index, x, edge_attr, y, i, batch, ptr = 
+            self.input = next(self.iter1)
+            self.label = self.input.y
+            self.indices = self.input.i
+
 
     def data_curriculum(self, **kwargs):
         self.net.train()
@@ -80,22 +82,22 @@ class DDS(BaseCL):
             temp2 = next(self.iter2)
 
         if self.net_type in ['text', 'vision']:
-            image, labels, indices = self.image, self.label, self.indices
+            input, labels, indices = self.input, self.label, self.indices
         if self.net_type == 'graph':
-            image, labels, indices = self.image, self.label, self.indices
+            input, labels, indices = self.input, self.label, self.indices
                    
         # Sample B training data points
-        image = image.to(self.device)
+        input = input.to(self.device)
         labels = labels.to(self.device)
         indices = indices.to(self.device)
 
         if self.net_type == 'vision':        
-            out = self.last_net(image)
+            out = self.last_net(input)
         if self.net_type == 'text':
-            out = self.last_net(image)[0]
+            out = self.last_net(input)[0]
         if self.net_type == 'graph':
-            pass     
-        # out = self.last_net(image)
+            out = self.last_net(input)    
+        # out = self.last_net(input)
 #        self.last_net.zero_grad()
         with torch.no_grad():       
             loss = self.criterion(out, labels)
@@ -103,22 +105,24 @@ class DDS(BaseCL):
 
         # Sample B validation data points
         if self.net_type == 'vision':        
-            image2, labels2, indices2 = temp2
+            input2, labels2, indices2 = temp2
         if self.net_type == 'text':
-            image2 = temp2['input_ids']
+            input2 = temp2['input_ids']
             labels2 = temp2['labels']
         if self.net_type == 'graph':
-            pass
+            input2 = temp2
+            labels2 = input2.y
+            # indicesw = input2.i
         
-        image2 = image2.to(self.device)
+        input2 = input2.to(self.device)
         labels2 = labels2.to(self.device)
         
         if self.net_type == 'vision':        
-            out2 = self.net(image2)
+            out2 = self.net(input2)
         if self.net_type == 'text':
-            out2 = self.net(image2)[0]
+            out2 = self.net(input2)[0]
         if self.net_type == 'graph':
-            pass
+            out2 = self.net(input2)
         
         loss2 = self.criterion(out2, labels2)
         totalloss2 = torch.mean(loss2)
@@ -132,35 +136,36 @@ class DDS(BaseCL):
         # l(x', y'; \theta_t)
         with torch.no_grad():
             if self.net_type == 'vision':        
-                loss3 = self.criterion(self.last_net(image), labels)
+                loss3 = self.criterion(self.last_net(input), labels)
             if self.net_type == 'text':
-                loss3 = self.criterion(self.last_net(image)[0], labels)
+                loss3 = self.criterion(self.last_net(input)[0], labels)
             if self.net_type == 'graph':
-                pass
+                loss3 = self.criterion(self.last_net(input), labels)
 
         # r_i ?
         r = (loss3 -loss)/self.epsilon
 
         if self.net_type == 'vision':        
-            out3 = self.vnet_(image)
+            out3 = self.vnet_(input)
         if self.net_type == 'text':
-            out3 = self.vnet_(image)[0]
+            out3 = self.vnet_(input)[0]
         if self.net_type == 'graph':
-            pass
+            out3 = self.vnet_(input)
         
 
         out4 = out3.reshape(out3.size() , -1)
         out5 = self.linear(out4)
         out5_norm = torch.sum(out5)
-        # grad0 = torch.autograd.grad(out5, self.vnet_.parameters())
+        # grad0 = torch.autograd.grad(out5_norm, self.vnet_.parameters())
         if out5_norm != 0:
             out5_ = out5/out5_norm
         else:
             out5_ = out5
         L = torch.sum(r * torch.log(out5_) )
-
+        
+        grad2 = torch.autograd.grad(L, self.vnet_.parameters(), retain_graph=True)
         grad1 = torch.autograd.grad(L, self.linear.parameters(), create_graph=True, retain_graph=True)
-        grad2 = torch.autograd.grad(L, self.vnet_.parameters())
+        
         # grad2 = torch.autograd.grad(L, self.vnet_.parameters(), allow_unused=True)
         #print(grad1)
         # print(grad2)
@@ -187,9 +192,11 @@ class DDS(BaseCL):
             b = temp['labels']
             i = temp['indices']
         if self.net_type == 'graph':
-            pass
+            a = temp
+            b = temp.y
+            i = temp.i
 
-        self.image = copy.deepcopy(a)
+        self.input = copy.deepcopy(a)
         self.label = copy.deepcopy(b)
 
         a = a.to(self.device)
@@ -202,7 +209,7 @@ class DDS(BaseCL):
         if self.net_type == 'text':
             z = self.vnet_(a)[0]
         if self.net_type == 'graph':
-            pass
+            z = self.vnet_(a)
 
         #print(z)
         w = self.linear(z)    
@@ -222,7 +229,10 @@ class DDS(BaseCL):
 #        del b
         # print(i)
         self.weights[torch.tensor(i).type(torch.long)] = w.view(1, -1).detach()
-        return [[a, b, i]]
+        if self.net_type == 'graph':
+            return [a,]
+        if self.net_type in ['vision', 'text']:
+            return [[a, b, i]]
 
 
     def loss_curriculum(self, outputs, labels, indices, **kwargs):
