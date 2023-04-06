@@ -28,10 +28,11 @@ class TextClassifier():
         # standard:  'sst2'
         # noise:     'sst2-noise-0.4', 
         # imbalance: 'sst2-imbalance-dominant-[0,1]-4-5-0.8', 'sst2-imbalance-exp-[0,1]-4-5-0.8'
+
         self.tokenizer = get_tokenizer(net_name)
         self.dataset, dataset = get_dataset(data_name, self.tokenizer)  # data format is dict: {train, valid, test}
         self.metric, self.metric_name = get_metric(data_name)
-    
+
         self.train_loader = torch.utils.data.DataLoader(
             dataset['train'], batch_size=init_batch_size, shuffle=True, pin_memory=True)
         if data_name == 'mnli':
@@ -59,7 +60,7 @@ class TextClassifier():
             self.optimizer = torch.optim.AdamW(self.net.parameters(), lr=2e-5)
             self.lr_scheduler = torch.optim.lr_scheduler.ConstantLR(self.optimizer, factor=1.0)
         else:                                                           # for lstm
-            self.optimizer = torch.optim.SGD(self.net.parameters(), lr=0.000001)                          
+            self.optimizer = torch.optim.SGD(self.net.parameters(), lr=0.001)                          
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 self.optimizer, T_max=self.epochs, eta_min=1e-5)
 

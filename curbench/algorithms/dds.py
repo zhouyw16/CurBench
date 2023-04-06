@@ -162,13 +162,16 @@ class DDS(BaseCL):
         else:
             out5_ = out5
         L = torch.sum(r * torch.log(out5_) )
+        # print(grad2)
         grad1 = torch.autograd.grad(L, self.linear.parameters(), create_graph=True, retain_graph=True)
         grad2 = torch.autograd.grad(L, self.vnet_.parameters())
-        
-        
-        # grad2 = torch.autograd.grad(L, self.vnet_.parameters(), allow_unused=True)
+        # grad2 = torch.autograd.grad(L, self.vnet_.parameters())
         #print(grad1)
         # print(grad2)
+        
+        # replace nan with 0
+        # for a in grad2:
+        #     a = torch.where(torch.isnan(a), torch.full_like(a, 0), a)
         for (name, parameter), j in zip(self.linear.named_parameters(), grad1):
             set_parameter(self.linear, name, parameter.add(j, alpha = -self.lr))
         for (name, parameter), j in zip(self.vnet_.named_parameters(), grad2):

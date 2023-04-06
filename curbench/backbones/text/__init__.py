@@ -1,6 +1,7 @@
 from transformers import AutoTokenizer
 
 from .lstm import LSTM
+from .bilstm import LSTM_attention
 from .transformer import get_transformer
 
 
@@ -16,6 +17,8 @@ def get_net(net_name, dataset, tokenizer):
     num_labels = dataset['train'].features['label'].num_classes
     if net_name == 'lstm':
         return LSTM(vocab_size, num_labels)
+    elif net_name == 'bilstm':
+        return LSTM_attention(vocab_size, num_labels)
     else:
         return get_transformer(net_name, vocab_size, num_labels)
 
@@ -25,6 +28,7 @@ def get_tokenizer(net_name):
         'gpt': 'gpt2',
         'bert': 'bert-base-uncased',
         'lstm': 'bert-base-uncased',
+        'bilstm': 'bert-base-uncased',
     }
     assert net_name in tokenizer_dict, \
         'Assert Error: net_name should be in ' + str(list(tokenizer_dict.keys()))

@@ -60,7 +60,7 @@ class BiLSTM(nn.Module):
 
 class LSTM(nn.Module):
     def __init__(self, vocab_size, num_labels, embedding_dim=300, hidden_dim=128, 
-                 n_layers=3, use_bidirectional=True, use_dropout=False):
+                 n_layers=3, use_bidirectional=False, use_dropout=False):
         super().__init__()
         self.num_labels = num_labels
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
@@ -70,6 +70,7 @@ class LSTM(nn.Module):
         self.hidden_dim = hidden_dim
         self.fc = nn.Linear(hidden_dim, self.num_labels)
         self.dropout = nn.Dropout(0.5 if use_dropout else 0.)
+
 
     def forward(self, input_ids, **kwargs):
         # self.rnn.flatten_parameters()

@@ -69,7 +69,6 @@ ln -s /DATA/DATANAS1/zyw16/MMData data
 python examples/base.py
 ```
 
-
 ## Run
 ```bash
 # 1. vision standard
