@@ -25,8 +25,8 @@ class ImageClassifier():
 
 
     def _init_dataloader(self, data_name):
-        # standard:  'cifar10'
-        # noise:     'cifar10-noise-0.4', 
+        # standard:  'cifar10'cifar10-noise-0.4
+        # noise:     '', 
         # imbalance: 'cifar10-imbalance-dominant-[0,1]-4-5-0.8', 'cifar10-imbalance-exp-[0,1]-4-5-0.8'
         self.dataset = get_dataset(data_name) # data format is list: [train, valid, test]
         
