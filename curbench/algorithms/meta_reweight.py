@@ -4,6 +4,7 @@ from torch.utils.data import Subset
 import numpy as np
 import torch.nn as nn
 from torch.optim.sgd import SGD
+from torch_geometric.data.data import Data as pygData
 import copy
 
 from .utils import set_parameter
@@ -25,8 +26,8 @@ class MetaReweight(BaseCL):
         sample_size = self.data_size//10
         temp = np.array(range(self.data_size))
         np.random.shuffle(temp)
-        valid_index = temp[:sample_size]
-        train_index = temp[sample_size:]
+        valid_index = temp[:sample_size].tolist()
+        train_index = temp[sample_size:].tolist()
         self.validationData = self._dataloader(Subset(self.dataset, valid_index), shuffle=False)
         self.trainData = self._dataloader(Subset(self.dataset, train_index))
         self.iter = iter(self.trainData)
@@ -60,16 +61,33 @@ class MetaReweight(BaseCL):
             # self.validationData = DataLoader(self.validationData.dataset, self.batch_size, shuffle=True)
             self.iter2 = iter(self.validationData)
             temp2 = next(self.iter2)
-
-        image, labels, indices = temp
-        image = image.to(self.device)
-        labels = labels.to(self.device)
-        indices = indices.to(self.device)
+        if isinstance(temp,list):
+            inputs, labels, indices = temp
+            inputs = inputs.to(self.device)
+            labels = labels.to(self.device)
+            indices = indices.to(self.device)
+        elif isinstance(temp, dict):
+            for _, data in enumerate(self.trainData):
+                inputs = {k: v.to(self.device) for k, v in data.items() 
+                          if k not in ['labels', 'indices']}
+                labels = data['labels'].to(self.device)
+                indices = data['indices'].to(self.device)
+        elif isinstance(temp[0],pygData):
+            for _,data in enumerate(self.trainData):
+                inputs = data.to(self.device)
+                labels = data.y.to(self.device)
+                indices = data.i
+        else:
+            NotImplementedError()
         pseudonet = copy.deepcopy(self.net)
-        out = pseudonet(image)
+        if isinstance(temp, dict):
+            with torch.backends.cudnn.flags(enabled=False):
+                out = pseudonet(**inputs)[0]
+        else :
+            out = pseudonet(inputs)
         loss = self.criterion(out, labels)
         eps = nn.Parameter(torch.zeros(loss.size())).to(self.device)
-        lr = 0.01
+        lr = 0.001
         totalloss1 = torch.sum(eps * loss)
 
         grad = torch.autograd.grad(totalloss1, pseudonet.parameters(), create_graph=True, retain_graph=True)
@@ -80,12 +98,28 @@ class MetaReweight(BaseCL):
 
 
         totalloss2 = 0
-        image2, label2, indices2 = temp2
-
-        image2 = image2.to(self.device)
-        label2 = label2.to(self.device)
-        out2 = pseudonet(image2)
-        loss2 = self.criterion(out2, label2)
+        if isinstance(temp2,list):
+            inputs2, labels2, indices2 = temp2
+            inputs2 = inputs2.to(self.device)
+            labels2 = labels2.to(self.device)
+            indices2 = indices2.to(self.device)
+        elif isinstance(temp, dict):
+            for _, data in enumerate(self.validationData):
+                inputs2 = {k: v.to(self.device) for k, v in data.items() 
+                          if k not in ['labels', 'indices']}
+                labels2 = data['labels'].to(self.device)
+                indices2 = data['indices'].to(self.device)
+        elif isinstance(temp2[0],pygData):
+            for _,data in enumerate(self.validationData):
+                inputs2 = data.to(self.device)
+                labels2 = data.y.to(self.device)
+                indices2 = data.i
+        if isinstance(temp2, dict):
+            with torch.backends.cudnn.flags(enabled=False):
+                out2 = pseudonet(**inputs2)[0]
+        else:
+            out2 = pseudonet(inputs2)
+        loss2 = self.criterion(out2, labels2)
         totalloss2 += torch.sum(loss2)
 
         grad_eps = torch.autograd.grad(totalloss2, eps)
@@ -98,7 +132,7 @@ class MetaReweight(BaseCL):
             w = w_tilde
         w = w * self.batch_size
         self.weights[indices] = w.view(1, -1).detach()
-        return [[image, labels, indices]]
+        return self._dataloader(self.dataset)
 
 
     def loss_curriculum(self, outputs, labels, indices, **kwargs):
