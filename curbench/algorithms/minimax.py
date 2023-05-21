@@ -63,7 +63,7 @@ class Minimax(BaseCL):
         else:
             self.delta = self.delta * self.data_size
 
-        self.num_classes = self.net.num_labels
+        self.num_classes = self.net.num_classes
 
 
     def data_curriculum(self, **kwargs):

@@ -2,6 +2,7 @@ import os
 import time
 import torch
 import torch_geometric as pyg
+from tqdm import tqdm
 
 from ..datasets.graph import get_dataset
 from ..backbones.graph import get_net
@@ -28,15 +29,14 @@ class GraphClassifier():
     def _init_dataloader(self, data_name):
         # standard:  'nci1'
         # noise:     'nci1-noise-0.4', 
-        # imbalance: 'nci1-imbalance-dominant-[0,1]-4-5-0.8', 'nci1-imbalance-exp-[0,1]-4-5-0.8'
         self.dataset, train_dataset, valid_dataset, test_dataset = get_dataset(data_name) # data format is a class: to shuffle and split
 
         self.train_loader = pyg.loader.DataLoader(
-            train_dataset, batch_size=50, shuffle=True, pin_memory=True)
+            train_dataset, batch_size=50, shuffle=True, pin_memory=True, num_workers=4)
         self.valid_loader = pyg.loader.DataLoader(
-            valid_dataset, batch_size=50, shuffle=False, pin_memory=True)
+            valid_dataset, batch_size=50, shuffle=False, pin_memory=True, num_workers=4)
         self.test_loader = pyg.loader.DataLoader(
-            test_dataset, batch_size=50, shuffle=False, pin_memory=True)
+            test_dataset, batch_size=50, shuffle=False, pin_memory=True, num_workers=4)
 
         self.data_prepare(self.train_loader)                            # curriculum part
 
@@ -51,18 +51,22 @@ class GraphClassifier():
         self.criterion = torch.nn.CrossEntropyLoss(reduction='none')
         self.optimizer = torch.optim.Adam(self.net.parameters(), lr=0.01)
         self.lr_scheduler = torch.optim.lr_scheduler.ConstantLR(self.optimizer, factor=1.0)
+        # self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        #         self.optimizer, T_max=self.epochs, eta_min=1e-5)
+        # self.lr_scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=5, gamma=0.5)
+        # self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='max', factor=0.5, patience=5, min_lr=1e-6)
 
         self.model_prepare(self.net, self.device, self.epochs,          # curriculum part
             self.criterion, self.optimizer, self.lr_scheduler)
-    
+
+
     def _init_logger(self, algorithm_name, data_name, 
                      net_name, num_epochs, random_seed):
         self.log_interval = 1
-        log_info = '%s-%s-%s-%d-%d-%s' % (
-            algorithm_name, data_name, net_name, num_epochs, random_seed,
-            time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime()))
+        log_info = '%s-%s-%s-%d-%d' % (
+            algorithm_name, data_name, net_name, num_epochs, random_seed)
         self.log_dir = create_log_dir(log_info)
-        self.logger = get_logger(os.path.join(self.log_dir, 'train.log'), log_info)
+        self.logger = get_logger(os.path.join(self.log_dir, 'train.log'))
 
 
     def _train(self):
@@ -77,7 +81,7 @@ class GraphClassifier():
             net = self.model_curriculum()                               # curriculum part
 
             net.train()
-            for step, data in enumerate(loader):
+            for data in tqdm(loader):
                 inputs = data.to(self.device)
                 labels = data.y.to(self.device)
                 indices = data.i.to(self.device)
@@ -93,8 +97,9 @@ class GraphClassifier():
                 correct += predicts.eq(labels).sum().item()
                 total += data.num_graphs
 
+            self.lr_scheduler.step()
             self.logger.info(
-                '[%3d]  Train data = %7d  Train Acc = %.4f  Loss = %.4f  Time = %.2fs'
+                '[%3d]  Train Data = %7d  Train Acc = %.4f  Loss = %.4f  Time = %.2fs'
                 % (epoch + 1, total, correct / total, train_loss / total, time.time() - t))
 
             if (epoch + 1) % self.log_interval == 0:
@@ -103,7 +108,7 @@ class GraphClassifier():
                     best_acc = valid_acc
                     torch.save(net.state_dict(), os.path.join(self.log_dir, 'net.pkl'))
                 self.logger.info(
-                    '[%3d]  Valid data = %7d  Valid Acc = %.4f  Best Valid Acc = %.4f' 
+                    '[%3d]  Valid Data = %7d  Valid Acc = %.4f  Best Valid Acc = %.4f' 
                     % (epoch + 1, len(self.valid_loader.dataset), valid_acc, best_acc))
 
 
@@ -113,7 +118,7 @@ class GraphClassifier():
 
         self.net.eval()
         with torch.no_grad():
-            for data in loader:
+            for data in tqdm(loader):
                 inputs = data.to(self.device)
                 labels = data.y.to(self.device)
 

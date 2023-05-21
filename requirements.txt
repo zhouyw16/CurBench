@@ -2,10 +2,9 @@ pillow
 transformers
 datasets
 evaluate
+einops
 
 torch
 torchvision
 torchaudio
 torch_geometric
-
-# pip install torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-2.0.0+cu117.html
