@@ -5,6 +5,7 @@ from tqdm import tqdm
 
 
 datasets = ['cifar10', 'cifar100']
+datasets_noise = [ _ + '-noise-0.4' for _ in datasets]
 models = ['lenet', 'resnet18', 'vgg16', 'vit']
 policies = ['online', 'naive', 'sampling', 'window']
 seeds = [42, 666, 777, 888, 999]
