@@ -10,13 +10,13 @@ datasets_noise = [ _ + '-noise-0.4' for _ in datasets]
 datasets = datasets + datasets_noise
 
 # models = ['lstm','bert','gpt']
-models = ['gpt']
+models = ['bert']
 policies = ['online', 'naive', 'sampling', 'window']
 seeds = [42, 666, 777, 888, 999]
 tasks = [it for it in itertools.product(datasets, models, policies,seeds)]
 
 
-def run(data, net, policy,seed, max_iter=3, gpu=4):
+def run(data, net, policy,seed, max_iter=3, gpu=3):
     cmd = f'python examples/rl_teacher.py --data {data} --net {net} --policy {policy}  --epoch {max_iter} --seed {seed} --gpu {gpu}'
     print(f"Processing {data} {net} {policy}\nseed:{seed} epoch:{max_iter} on gpu{gpu}\n")
     p = subprocess.Popen(
