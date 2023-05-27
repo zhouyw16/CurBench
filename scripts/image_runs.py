@@ -14,6 +14,7 @@ policies = ['online', 'naive', 'sampling', 'window']
 seeds = [42, 666, 777, 888, 999]
 tasks = [it for it in itertools.product(datasets, models, policies,seeds)]
 
+error_list = []
 
 def run(data, net, policy, seed, max_iter=200, gpu=5):
     cmd = f'python examples/rl_teacher.py --data {data} --net {net} --policy {policy} --epoch {max_iter} --seed {seed} --gpu {gpu}'
