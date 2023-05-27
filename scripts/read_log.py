@@ -34,7 +34,7 @@ for d in os.listdir(path):
                     if final_flag:
                         [best_valid, final_test]=re.findall("\d+\.\d+",line)
                         # end_time = datetime.strptime("".join(re.findall(r'\d{4}-\d?\d-\d?\d (?:2[0-3]|[01]?[0-9]):[0-5]?[0-9]:[0-5]?[0-9]',line)), '%Y-%m-%d %H:%M:%S')
-                        row = pd.DataFrame([[policy,data,noise_level,net,epoch,seed,best_valid,'']],columns=cols)  # 8 cloumns
+                        row = pd.DataFrame([[policy,data,noise_level,net,epoch,seed,best_valid,final_test]],columns=cols)  # 8 cloumns
                         # print(row)
                         df = pd.concat([df,row],ignore_index=True)
 
@@ -49,7 +49,7 @@ for d in os.listdir(path):
                     
 
 df.reset_index()
-df.to_excel('scripts/results36.xlsx')
+df.to_excel('scripts/results33.xlsx')
         
 
 # for d in os.listdir(path):
