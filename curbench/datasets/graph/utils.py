@@ -63,7 +63,7 @@ class ClassImbalanced(InMemoryDataset):
         self.idx = []
         self.imbalance_ratio = imbalance_ratio
 
-        counter = collections.Counter([self.dataset.data.y[i].item() for i in range(len(self.dataset.data.y))])
+        counter = collections.Counter([data.y.item() for i, data in enumerate(self.dataset)])
         label_cnts = [counter[key] for key in sorted(counter.keys())]
         print('Original label: ', np.array(label_cnts))
 
