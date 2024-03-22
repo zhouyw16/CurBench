@@ -123,7 +123,7 @@ class ClassImbalanced(Dataset):
         for i, data in enumerate(self.dataset['train']):
             label = data['labels'].item()
             self.labels.append(torch.tensor(label))
-            if np.random.rand() < (mu ** int(label)):
+            if np.random.rand() < (mu ** int(label)) * counter[0] / counter[int(label)]:
                 label_cnts[int(label)] += 1
                 self.idx.append(i)
         print('Imbalance label: ', np.array(label_cnts))

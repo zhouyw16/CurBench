@@ -71,7 +71,7 @@ class ClassImbalanced(InMemoryDataset):
         mu = (1.0 / imbalance_ratio) ** (1.0 / (len(counter.keys()) - 1))
         for i, data in enumerate(self.dataset):
             label = data.y.item()
-            if np.random.rand() < (mu ** label):
+            if np.random.rand() < (mu ** label) * counter[0] / counter[label]:
                 label_cnts[label] += 1
                 self.idx.append(i)
         print('Imbalance label: ', np.array(label_cnts))
