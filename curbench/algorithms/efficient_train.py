@@ -16,11 +16,13 @@ class EfficientTrain(BaseCL):
     """
 
     class FreqCrop(object):
-        def __init__(self, band_width):
+        def __init__(self, band_width, device):
             super().__init__()
             self.band_width = band_width
+            self.device = device
 
         def _freq_crop(self, input_t):
+            input_t = input_t.to(self.device)
             img_size = input_t.size(-1)
             band_w = self.band_width // 2
 
@@ -43,7 +45,7 @@ class EfficientTrain(BaseCL):
 
             img_crop = F.interpolate(img_crop.unsqueeze(0), size=img_size, mode='bicubic', align_corners=False).squeeze(0)
 
-            return img_crop
+            return img_crop.detach()
 
         def __call__(self, img):
             return self._freq_crop(img)
@@ -91,7 +93,7 @@ class EfficientTrain(BaseCL):
             
             # low-frequency cropping
             if self.b_list[ET_index] < self.image_size:
-                freq_crop_transform = [self.FreqCrop(self.b_list[ET_index])]
+                freq_crop_transform = [self.FreqCrop(self.b_list[ET_index], self.device)]
             else:
                 freq_crop_transform = []
 
